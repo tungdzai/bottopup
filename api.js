@@ -1,6 +1,8 @@
 import axios from "axios";
 import * as cheerio from 'cheerio';
-import {generateRandomUserName, getRandomProvinceCode, maxWin, minWin} from "./handlers.js";
+import {generateRandomUserName, getRandomProvinceCode} from "./handlers.js";
+
+
 export async function getHome(requestData, agent) {
     try {
         const response = await axios.get(requestData.origin, {
@@ -25,6 +27,7 @@ export async function getHome(requestData, agent) {
             withCredentials: true,
             httpAgent: agent,
             httpsAgent: agent,
+            timeout: 20000
         });
         const html = response.data;
         const $ = cheerio.load(html);
@@ -39,35 +42,28 @@ export async function getHome(requestData, agent) {
         return null;
     }
 }
-export async function checkPhoneReward(phoneList, requestData, token, cookies, agent, maxWin, minWin, retries = 20) {
+export async function checkPhoneReward(phoneList, requestData, maxWin, retries = 20) {
+    // const phoneNumber = phoneList[Math.floor(Math.random() * phoneList.length)];
+    // return phoneNumber
     if (retries < 0) {
         return null
     }
     try {
         const phoneNumber = phoneList[Math.floor(Math.random() * phoneList.length)];
         const response = await axios.get(`${requestData.origin}/Home/ListGiai?SearchString=${phoneNumber}`, {
-            headers: {
-                'RequestVerificationToken': token,
-                'Host': requestData.host,
-                'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
-                'accept': '*/*',
-                'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                'x-requested-with': 'XMLHttpRequest',
-                'sec-ch-ua-mobile': '?1',
-                'user-agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36',
-                'sec-ch-ua-platform': '"Android"',
-                'origin': requestData.origin,
-                'sec-fetch-site': 'same-origin',
-                'sec-fetch-mode': 'cors',
-                'sec-fetch-dest': 'empty',
-                'referer': requestData.referer,
-                'accept-encoding': 'gzip, deflate, br, zstd',
-                'accept-language': 'vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5',
-                'priority': 'u=1',
-                'Cookie': cookies,
-            },
-            httpAgent: agent,
-            httpsAgent: agent,
+            headers : {
+                'sec-ch-ua': '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+                'sec-ch-ua-mobile': '?0',
+                'sec-ch-ua-platform': '"Windows"',
+                'Upgrade-Insecure-Requests': '1',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Sec-Fetch-Site': 'same-origin',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-User': '?1',
+                'Sec-Fetch-Dest': 'document',
+                'Host': 'quatangtopkid.thmilk.vn'
+            }
         });
 
         // console.log('Response Headers:', response.headers);
@@ -87,17 +83,17 @@ export async function checkPhoneReward(phoneList, requestData, token, cookies, a
             };
             winners.push(winner);
         });
-        if (winners.length < maxWin && winners.length >= minWin) {
+        if (winners.length < maxWin) {
             return {
                 win: winners.length,
                 phone: phoneNumber
             }
         }
         console.log(`${phoneNumber} quá số lần ${requestData.referer}`)
-        return await checkPhoneReward(phoneList, requestData, token, cookies, agent,maxWin,minWin, retries - 1)
+        return await checkPhoneReward(phoneList, requestData, maxWin, retries - 1)
     } catch (error) {
         console.error('Lỗi checkPhoneReward ', error.status || error.message);
-        return await checkPhoneReward(phoneList, requestData, token, cookies, agent,maxWin,minWin, retries - 1);
+        return null;
     }
 }
 export async function spinLucky(requestData,gift, phone, token, cookie, agent) {
@@ -133,6 +129,7 @@ export async function spinLucky(requestData,gift, phone, token, cookie, agent) {
             },
             httpAgent: agent,
             httpsAgent: agent,
+            timeout:20000
         });
         return responseLucky.data;
     } catch (error) {

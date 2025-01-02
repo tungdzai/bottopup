@@ -8,7 +8,8 @@ let currentMode = null; // Xác định chế độ hiện tại của bot
 let currentGame = null; // Xác định loại trò chơi
 let currentCodes = []; // Danh sách mã giảm
 let requestedCount = null; // Số lượng mã muốn chơi
-let batchSize = null; // Số lượng mã chơi game / giây
+let batchSize = null; // Số lượng mã chơi game / giây;
+let maxWin = null;
 
 
 bot.on("message", async (msg) => {
@@ -28,6 +29,8 @@ bot.on("message", async (msg) => {
         currentGame = null;
         currentCodes = null;
         requestedCount = null;
+        maxWin = null
+
     } else if (currentMode === 'startgame' && phoneList.length === 0 && !currentGame) {
         const phoneNumbers = messageText
             .split('\n')
@@ -64,7 +67,7 @@ bot.on("message", async (msg) => {
 
             if (currentCodes.length === 0) {
                 await sendTelegramMessage(`Không có mã ${currentGame} nào để chơi. Vui lòng thêm mã.`);
-                currentGame = null;
+                currentMode = 'addgift';
             } else {
                 await sendTelegramMessage(`Có ${currentCodes.length} mã ${currentGame} khả dụng. Vui lòng nhập số lượng mã muốn sử dụng.`);
             }
@@ -76,27 +79,32 @@ bot.on("message", async (msg) => {
         } else {
             await sendTelegramMessage("Vui lòng nhập số lượng mã hợp lệ (số nguyên dương).");
         }
-    } else if (currentMode === 'startgame' && phoneList.length > 0 && currentGame && currentCodes.length > 0 && requestedCount) {
+    } else if (currentMode === 'startgame' && phoneList.length > 0 && currentGame && currentCodes.length > 0 && requestedCount && !batchSize) {
         batchSize = parseInt(messageText);
         if (!isNaN(batchSize) && batchSize > 0) {
-            if (batchSize) {
-                await sendTelegramMessage(`Thông tin trò chơi \n Tổng số điện thoại tham gia : ${phoneList.length} \n Loại quay thưởng : ${currentGame} \n Số lượng mã quay: ${requestedCount} \n Tốc độ(mã/s): ${batchSize} `);
-                await runCode(phoneList, currentGame, currentCodes, requestedCount, batchSize);
-
-                phoneList = [];
-                currentMode = null;
-                currentGame = null;
-                currentCodes = [];
-                requestedCount = null;
-                batchSize = null;
-
-            } else {
-                await sendTelegramMessage("Không đủ mã để thực hiện yêu cầu. Vui lòng thử lại với số lượng nhỏ hơn.");
-            }
+            await sendTelegramMessage("Vui lòng nhập ngưỡng trúng thưởng");
         } else {
             await sendTelegramMessage("Vui lòng nhập số hợp lệ (số nguyên dương).");
+            batchSize=null
         }
-    } else if (currentMode === 'addgift') {
+    }else if (currentMode === 'startgame' && phoneList.length > 0 && currentGame && currentCodes.length > 0 && requestedCount && batchSize){
+        maxWin=parseInt(messageText)
+        if (!isNaN(maxWin) && maxWin > 0) {
+            await sendTelegramMessage(`Thông tin trò chơi \n Tổng số điện thoại tham gia : ${phoneList.length} \n Loại quay thưởng : ${currentGame} \n Số lượng mã quay: ${requestedCount} \n Tốc độ(mã/s): ${batchSize} \n Ngưỡng thắng ${maxWin}`);
+            await runCode(phoneList, currentGame, currentCodes, requestedCount, batchSize,maxWin);
+            phoneList = [];
+            currentMode = null;
+            currentGame = null;
+            currentCodes = [];
+            requestedCount = null;
+            batchSize = null;
+            maxWin = null
+        } else {
+            await sendTelegramMessage("Vui lòng nhập số hợp lệ (số nguyên dương).");
+            maxWin=null;
+        }
+    }
+    else if (currentMode === 'addgift') {
         const gifts = messageText
             .split('\n')
             .map((gift) => gift.trim())
@@ -112,9 +120,8 @@ bot.on("message", async (msg) => {
             await fs.appendFile('./data/topKid.txt', topKidGifts.join('\n') + '\n');
         }
 
-        await sendTelegramMessage(
-            `Đã lưu:\n${yogurtGifts.length} mã vào yogurt.txt\n${topKidGifts.length} mã vào topkid.txt`
-        );
+        await sendTelegramMessage(`Đã lưu:\n${yogurtGifts.length} mã vào yogurt.txt\n${topKidGifts.length} mã vào topkid.txt`);
+
     } else {
         await sendTelegramMessage(`Chưa chọn chế độ chơi`);
     }

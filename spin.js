@@ -2,16 +2,14 @@ import {sendTelegramMessage} from "./telegram.js";
 import {checkPhoneReward, getHome, spinLucky} from "./api.js";
 import {getProxiesData, getRandomProxies, httpsProxyAgent} from "./proxy.js";
 import {
-    maxWin,
-    minWin,
     getRandomTime,
-    readCodesFromFile,
     writeCodesToFile
 } from './handlers.js';
-
-export async function runCode(phoneList, currentGame, currentCodes, requestedCount, batchSize) {
+import fs from 'fs/promises';
+export async function runCode(phoneList, currentGame, currentCodes, requestedCount, batchSize,maxWin) {
     let requestData;
     const filePath = currentGame === 'topkid' ? './data/topKid.txt' : './data/yogurt.txt';
+    const errorCodes = [];
     if (currentGame === 'topkid') {
         requestData = {
             checkCode: 'https://quatangtopkid.thmilk.vn/Home/CheckCode',
@@ -33,7 +31,6 @@ export async function runCode(phoneList, currentGame, currentCodes, requestedCou
 
     const codesToProcess = currentCodes.splice(0, requestedCount);
     await sendTelegramMessage(`Đã lấy ${requestedCount} mã để chơi, số lượng mã còn lại: ${currentCodes.length}`);
-    await writeCodesToFile(filePath, currentCodes);
 
     const allProxies = await getProxiesData();
 
@@ -55,38 +52,58 @@ export async function runCode(phoneList, currentGame, currentCodes, requestedCou
                 return;
             }
             const agent = await httpsProxyAgent(proxy);
+            if (!agent) {
+                // If no agent, skip this iteration and notify the bot
+                const message = `Lỗi proxy hoặc agent không hợp lệ cho mã ${gift}`;
+                await sendTelegramMessage(message);
+                console.log(`Lỗi proxy hoặc agent không hợp lệ cho mã ${gift}`);
+                errorCodes.push(gift);
+                return;
+            }
             const responseHome = await getHome(requestData, agent);
-
+            await getRandomTime(3000,5000)
             if (responseHome) {
                 const token = responseHome.token;
                 const cookies = responseHome.cookies;
 
-                const resultReward = await checkPhoneReward(phoneList, requestData, token, cookies, agent, maxWin, minWin);
+                // const phoneNumber = phoneList[Math.floor(Math.random() * phoneList.length)];
+                const resultReward = await checkPhoneReward(phoneList, requestData, maxWin);
                 if (resultReward) {
                     const resultSpin = await spinLucky(requestData, gift, resultReward.phone, token, cookies, agent);
                     if (resultSpin) {
                         const type = resultSpin.Type;
-                        console.log(`${resultReward.phone} ${resultReward.win} ${gift} ${type} ${resultSpin.Message}`);
                         const html = resultSpin.HtmlGiai;
                         if (type !== 'notWin' && html) {
                             const regex = /<div class="win-product">([\s\S]*?)<\/div>/g;
                             const winProduct = [...(html.matchAll(regex) || [])].map(match => match[1].trim().replace(/<br\s*\/?>/gi, ' '));
-                            const messageText = `${resultReward.phone} ${gift} ${winProduct}`
+                            const messageText = `${resultReward.phone} ${resultReward.win} ${gift} ${winProduct}`
                             await sendTelegramMessage(messageText);
+                        }else {
+                            const messageNotWin=`${resultReward.phone} ${resultReward.win} ${gift} ${type} ${resultSpin.Message}`;
+                            console.log(messageNotWin);
                         }
+                    }else {
+                        console.log(`spinLucky lỗi tai ${gift} ${resultSpin}`);
+                        errorCodes.push(gift);
                     }
                 } else {
-                    console.log(`Kiểm tra phone bị lỗi`)
+                    console.log(`CheckPhoneReward lỗi tai ${gift}`);
+                    errorCodes.push(gift);
                 }
 
             } else {
-                console.log(`Đăng nhập lỗi tại ${gift}`)
+                console.log(`GetHome lỗi tại ${gift}`);
+                errorCodes.push(gift);
             }
         });
         await Promise.all(batchPromises);
-        await getRandomTime(2000, 3000);
+        await getRandomTime(1000,3000)
     }
 
-    await sendTelegramMessage(`Dã thực hiện chạy xong ${requestedCount} mã`)
-
+    if (errorCodes.length > 0) {
+        await fs.appendFile('./data/errors.txt', errorCodes.join('\n') + '\n');
+        await sendTelegramMessage(`Đã lưu ${errorCodes.length} mã lỗi vào file.`);
+    }
+    await sendTelegramMessage(`Dã thực hiện chạy xong ${requestedCount} mã`);
+    await writeCodesToFile(filePath, currentCodes);
 }
